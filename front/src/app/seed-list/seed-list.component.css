@@ -1,0 +1,14 @@
+textarea {
+  height: 30em;
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+.fab-button {
+  float: right;
+  position: relative;
+  bottom: 100px;
+  right: 30px;
+}

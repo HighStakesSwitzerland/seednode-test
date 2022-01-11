@@ -1,0 +1,30 @@
+<table [dataSource]="dataSource" class="mat-elevation-z8" mat-table>
+  <ng-container matColumnDef="nodeId">
+    <th *matHeaderCellDef mat-header-cell> NodeId</th>
+    <td *matCellDef="let element" mat-cell> {{element.nodeId}} </td>
+  </ng-container>
+
+  <!-- Name Column -->
+  <ng-container matColumnDef="moniker">
+    <th *matHeaderCellDef mat-header-cell> Name</th>
+    <td *matCellDef="let element" mat-cell> {{element.moniker}} </td>
+  </ng-container>
+
+  <!-- Weight Column -->
+  <ng-container matColumnDef="status">
+    <th *matHeaderCellDef mat-header-cell> Status</th>
+    <td *matCellDef="let element" mat-cell> {{element.Status}} </td>
+  </ng-container>
+
+  <!-- Symbol Column -->
+  <ng-container matColumnDef="result">
+    <th *matHeaderCellDef mat-header-cell> Result</th>
+    <td *matCellDef="let element" mat-cell>
+      {{element.numPeerReturned}}
+      <mat-icon>list</mat-icon>
+    </td>
+  </ng-container>
+
+  <tr *matHeaderRowDef="displayedColumns" mat-header-row></tr>
+  <tr *matRowDef="let row; columns: displayedColumns;" mat-row></tr>
+</table>

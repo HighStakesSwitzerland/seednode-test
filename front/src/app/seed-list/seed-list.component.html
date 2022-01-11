@@ -1,0 +1,14 @@
+<div class="m-5">
+  <mat-form-field appearance="fill">
+    <mat-label>Copy paste seed node list here. Delimiters: comma or line break</mat-label>
+    <div style="text-align:center">
+      <textarea #textarea matInput>
+      </textarea>
+    </div>
+  </mat-form-field>
+  <div class="fab-button">
+    <button (click)="submit()" aria-label="Submit" color="primary" mat-fab>
+      <mat-icon>upload</mat-icon>
+    </button>
+  </div>
+</div>
