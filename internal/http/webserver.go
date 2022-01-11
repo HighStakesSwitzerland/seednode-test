@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/tendermint/tendermint/libs/log"
-	"github.com/tendermint/tendermint/p2p"
 	"github.com/terran-stakers/seednode-test/internal/seednode"
+	"github.com/terran-stakers/seednode-test/internal/tendermint"
 	"net/http"
 	"os"
 )
@@ -20,7 +20,7 @@ type WebResources struct {
 	Files map[string]string
 }
 
-func StartWebServer(seedConfig seednode.TSConfig, sw *p2p.Switch, reactor *seednode.SeedNodeReactor) {
+func StartWebServer(seedConfig seednode.TSConfig, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
 	// serve endpoint
 	http.HandleFunc("/api/peers", func(w http.ResponseWriter, r *http.Request) {
 		handleOperation(w, r, sw, reactor)
@@ -36,7 +36,7 @@ func StartWebServer(seedConfig seednode.TSConfig, sw *p2p.Switch, reactor *seedn
 	}()
 }
 
-func handleOperation(w http.ResponseWriter, r *http.Request, sw *p2p.Switch, reactor *seednode.SeedNodeReactor) {
+func handleOperation(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
 	if r.Method == "GET" {
 		writePeers(w)
 	} else if r.Method == "POST" {
@@ -44,19 +44,17 @@ func handleOperation(w http.ResponseWriter, r *http.Request, sw *p2p.Switch, rea
 	}
 }
 
-func handlePeers(w http.ResponseWriter, r *http.Request, sw *p2p.Switch, reactor *seednode.SeedNodeReactor) {
-	w.WriteHeader(200)
+func handlePeers(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
 
 	var peers []string
-	var unmarshalErr *json.UnmarshalTypeError
-
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	err := decoder.Decode(&peers)
 
 	if err != nil {
-		w.Write([]byte("Bad Request " + err.Error() + unmarshalErr.Field))
+		_, _ = w.Write([]byte("Bad Request " + err.Error()))
 		w.WriteHeader(400)
+		return
 	}
 
 	logger.Info(fmt.Sprintf("Received %d peers to dial", len(peers)))
@@ -64,6 +62,7 @@ func handlePeers(w http.ResponseWriter, r *http.Request, sw *p2p.Switch, reactor
 	// emit peers
 	seednode.DialPeers(peers, sw, reactor)
 
+	w.WriteHeader(200)
 }
 
 func writePeers(w http.ResponseWriter) {

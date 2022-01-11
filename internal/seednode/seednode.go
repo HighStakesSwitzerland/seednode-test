@@ -10,6 +10,7 @@ import (
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/p2p/pex"
 	"github.com/tendermint/tendermint/version"
+	"github.com/terran-stakers/seednode-test/internal/tendermint"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,7 +20,7 @@ var (
 	logger = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "seednode")
 )
 
-func StartSeedNode(seedConfig TSConfig, nodeKey p2p.NodeKey) (*p2p.Switch, *SeedNodeReactor) {
+func StartSeedNode(seedConfig TSConfig, nodeKey p2p.NodeKey) (*tendermint.Switch, *tendermint.SeedNodeReactor) {
 	cfg := config.DefaultP2PConfig()
 	cfg.AllowDuplicateIP = true
 
@@ -46,7 +47,7 @@ func StartSeedNode(seedConfig TSConfig, nodeKey p2p.NodeKey) (*p2p.Switch, *Seed
 		panic(err)
 	}
 
-	transport := p2p.NewMultiplexTransport(nodeInfo, nodeKey, p2p.MConnConfig(cfg))
+	transport := tendermint.NewMultiplexTransport(nodeInfo, nodeKey, p2p.MConnConfig(cfg))
 	if err := transport.Listen(*addr); err != nil {
 		panic(err)
 	}
@@ -56,14 +57,14 @@ func StartSeedNode(seedConfig TSConfig, nodeKey p2p.NodeKey) (*p2p.Switch, *Seed
 	addrBook := pex.NewAddrBook(addrBookFilePath, seedConfig.AddrBookStrict)
 	addrBook.SetLogger(logger.With("module", "addrbook"))
 
-	pexReactor := NewReactor(addrBook, &pex.ReactorConfig{
+	pexReactor := tendermint.NewReactor(addrBook, &pex.ReactorConfig{
 		SeedMode:                     true,
 		Seeds:                        tmstrings.SplitAndTrim(seedConfig.Seeds, ",", " "),
 		SeedDisconnectWaitPeriod:     1 * time.Second, // default is 28 hours, we just want to harvest as many addresses as possible
 		PersistentPeersMaxDialPeriod: 5 * time.Minute, // use exponential back-off
 	})
 
-	sw := p2p.NewSwitch(cfg, transport)
+	sw := tendermint.NewSwitch(cfg, transport)
 	sw.SetNodeKey(&nodeKey)
 	sw.SetAddrBook(addrBook) // TODO delete that
 	sw.AddReactor("pex", pexReactor)

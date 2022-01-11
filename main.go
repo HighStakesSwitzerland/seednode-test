@@ -2,16 +2,16 @@ package main
 
 import (
 	"github.com/tendermint/tendermint/libs/log"
-	"github.com/tendermint/tendermint/p2p"
 	"github.com/terran-stakers/seednode-test/internal/http"
 	"github.com/terran-stakers/seednode-test/internal/seednode"
-	"os"
+  "github.com/terran-stakers/seednode-test/internal/tendermint"
+  "os"
 )
 
 var (
 	logger  = log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "main")
-	sw      *p2p.Switch
-	reactor *seednode.SeedNodeReactor
+	sw      *tendermint.Switch
+	reactor *tendermint.SeedNodeReactor
 )
 
 func main() {
