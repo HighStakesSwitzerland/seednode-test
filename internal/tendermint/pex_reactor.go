@@ -4,16 +4,12 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/libs/service"
-	"github.com/tendermint/tendermint/p2p/conn"
 	"os"
 
 	"fmt"
-	"github.com/tendermint/tendermint/libs/cmap"
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/p2p/pex"
 	tmp2p "github.com/tendermint/tendermint/proto/tendermint/p2p"
-	"sync"
-	"time"
 )
 
 /**
@@ -27,7 +23,7 @@ var (
 type Reactor interface {
 	service.Service // Start, Stop
 	SetSwitch(*Switch)
-	GetChannels() []*conn.ChannelDescriptor
+	GetChannels() []*ChannelDescriptor
 	InitPeer(peer Peer) Peer
 	AddPeer(peer Peer)
 	RemovePeer(peer Peer, reason interface{})
@@ -37,29 +33,11 @@ type Reactor interface {
 type SeedNodeReactor struct {
 	p2p.BaseReactor
 	Switch *Switch
-
-	book              pex.AddrBook
-	config            *pex.ReactorConfig
-	ensurePeersPeriod time.Duration // TODO: should go in the config
-
-	// maps to prevent abuse
-	requestsSent         *cmap.CMap // ID->struct{}: unanswered send requests
-	lastReceivedRequests *cmap.CMap // ID->time.Time: last time peer requested from us
-
-	seedAddrs []*p2p.NetAddress
-
-	attemptsToDial sync.Map // address (string) -> {number of attempts (int), last time dialed (time.Time)}
 }
 
 // NewReactor creates new PEX reactor.
-func NewReactor(b pex.AddrBook, config *pex.ReactorConfig) *SeedNodeReactor {
-	r := &SeedNodeReactor{
-		book:                 b,
-		config:               config,
-		ensurePeersPeriod:    30 * time.Second,
-		requestsSent:         cmap.NewCMap(),
-		lastReceivedRequests: cmap.NewCMap(),
-	}
+func NewReactor() *SeedNodeReactor {
+	r := &SeedNodeReactor{}
 	r.BaseReactor = *NewBaseReactor("PEX", r)
 	return r
 }
@@ -74,12 +52,7 @@ func NewBaseReactor(name string, impl Reactor) *p2p.BaseReactor {
 // RequestAddrs asks peer for more addresses if we do not already have a
 // request out for this peer.
 func (br *SeedNodeReactor) RequestAddrs(p Peer) {
-	id := string(p.ID())
-	if br.requestsSent.Has(id) {
-		return
-	}
-	br.Logger.Debug("Request addrs", "from", p)
-	br.requestsSent.Set(id, struct{}{})
+	logger.Debug(fmt.Sprintf("Requesting addrs from %s", p.ID()))
 	p.Send(pex.PexChannel, mustEncode(&tmp2p.PexRequest{}))
 }
 
@@ -87,11 +60,10 @@ func (br *SeedNodeReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 	msg, err := decodeMsg(msgBytes)
 
 	if err != nil {
-		br.Logger.Error("Error decoding message", "src", src, "chId", chID, "err", err)
+		logger.Error("Error decoding message", "src", src, "chId", chID, "err", err)
 		br.Switch.StopPeerForError(src, err)
 		return
 	}
-	br.Logger.Debug("Received message ", "src", src, "chId", chID, "msg", msg)
 
 	switch msg := msg.(type) {
 	case *tmp2p.PexRequest:
@@ -101,24 +73,25 @@ func (br *SeedNodeReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 
 	case *tmp2p.PexAddrs:
 		// We asked for addresses, return them to the front and forget them
-		_, err := p2p.NetAddressesFromProto(msg.Addrs)
+		addrs, err := p2p.NetAddressesFromProto(msg.Addrs)
+		logger.Info(fmt.Sprintf("We got %d addresses", len(addrs)))
 		if err != nil {
 			logger.Error(err.Error())
 			return
 		}
 
 	default:
-		br.Logger.Error(fmt.Sprintf("Unknown message type %T", msg))
+		logger.Error(fmt.Sprintf("Unknown message type %T", msg))
 	}
 }
 
-// DialPeer Dials a peer and retrieve the resulting seed list
-func DialPeer(addrs []*p2p.NetAddress, srcAddr *p2p.NetAddress, r *SeedNodeReactor) error {
+// DialPeers Dials a peer and retrieve the resulting seed list
+func DialPeers(addrs []*p2p.NetAddress, srcAddr *p2p.NetAddress, r *SeedNodeReactor) error {
 	for _, netAddr := range addrs {
 		logger.Info("Will dial address", "addr", netAddr, "seed", srcAddr)
 		err := r.Switch.DialPeerWithAddress(netAddr)
 		if err != nil {
-			r.Logger.Error(err.Error(), "addr", netAddr)
+			logger.Error(err.Error(), "addr", netAddr)
 		}
 	}
 
@@ -126,8 +99,8 @@ func DialPeer(addrs []*p2p.NetAddress, srcAddr *p2p.NetAddress, r *SeedNodeReact
 }
 
 // GetChannels implements Reactor
-func (br *SeedNodeReactor) GetChannels() []*conn.ChannelDescriptor {
-	return []*conn.ChannelDescriptor{
+func (br *SeedNodeReactor) GetChannels() []*ChannelDescriptor {
+	return []*ChannelDescriptor{
 		{
 			ID:                  pex.PexChannel,
 			Priority:            1,

@@ -46,7 +46,7 @@ type accept struct {
 // events.
 // TODO(xla): Refactor out with more static Reactor setup and PeerBehaviour.
 type peerConfig struct {
-	chDescs     []*conn.ChannelDescriptor
+	chDescs     []*ChannelDescriptor
 	onPeerError func(Peer, interface{})
 	outbound    bool
 	// isPersistent allows you to set a function, which, given socket address
@@ -54,7 +54,6 @@ type peerConfig struct {
 	// if the peer is persistent or not.
 	isPersistent func(*p2p.NetAddress) bool
 	reactorsByCh map[byte]Reactor
-	metrics      *p2p.Metrics
 }
 
 // Transport emits and connects to Peers. The implementation of Peer is left to
@@ -113,7 +112,7 @@ type MultiplexTransport struct {
 	// TODO(xla): This config is still needed as we parameterise peerConn and
 	// peer currently. All relevant configuration should be refactored into options
 	// with sane defaults.
-	mConfig conn.MConnConfig
+	mConfig MConnConfig
 }
 
 // Test multiplexTransport for interface completeness.
@@ -124,7 +123,7 @@ var _ transportLifecycle = (*MultiplexTransport)(nil)
 func NewMultiplexTransport(
 	nodeInfo p2p.NodeInfo,
 	nodeKey p2p.NodeKey,
-	mConfig conn.MConnConfig,
+	mConfig MConnConfig,
 ) *MultiplexTransport {
 	return &MultiplexTransport{
 		acceptc:          make(chan accept),
@@ -437,7 +436,6 @@ func (mt *MultiplexTransport) wrapPeer(
 		cfg.reactorsByCh,
 		cfg.chDescs,
 		cfg.onPeerError,
-		PeerMetrics(cfg.metrics),
 	)
 
 	return p
