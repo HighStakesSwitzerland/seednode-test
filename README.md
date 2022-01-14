@@ -11,11 +11,14 @@ npm install
 npm run build
 go install .
 ./seednode-test
+# here execution will generate the config file and exit (with an error)
+# adapt the chain-id and ports as needed, and rerun
+# when the app is running, deploy the frontend using nginx or something else
 ```
 
 A file `$HOME/.seednode-test/config.toml` will be generated if it doesn't exist yet, with some default parameters, and the program will exit.
 
-You need to fill the `seeds` and `chain_id` for every chain and start it again.
+You need to fill the and `chain_id` for every chain and start it again.
 It may take few minutes/hours before discovering peers, depending on the network. 
 
 ## License
