@@ -3,8 +3,8 @@ import {MatDialog} from "@angular/material/dialog";
 import {MatPaginator} from "@angular/material/paginator";
 import {MatSort} from "@angular/material/sort";
 import {MatTableDataSource} from "@angular/material/table";
-import {catchError, EMPTY, empty, filter, Subject, switchMap, takeUntil, timer} from "rxjs";
-import {get as _get, isEmpty as _isEmpty} from "lodash-es";
+import {get as _get} from "lodash-es";
+import {catchError, combineLatest, EMPTY, startWith, Subject, switchMap, takeUntil, timer} from "rxjs";
 import {Peer} from "../../lib/domain/peer";
 import {SeedService} from "../../lib/infra/seed.service";
 import {DialogComponent, DialogData} from "../dialog/dialog.component";
@@ -21,10 +21,11 @@ export class MonitorComponent implements OnInit, AfterViewInit, OnDestroy {
   sort!: MatSort;
 
   public dataSource: MatTableDataSource<Peer> = new MatTableDataSource();
-  public displayedColumns = ["nodeId", "moniker", "status", "LastValue", "peers"];
+  public displayedColumns = ["nodeId", "moniker", "status", "LastValue", "peers", "remove"];
 
   getPeers = timer(0, 5000);
-  _destroy$ = new Subject<void>()
+  getPeersManual = new Subject();
+  _destroy$ = new Subject<void>();
 
   constructor(private readonly _seedService: SeedService,
               private readonly _dialog: MatDialog) {
@@ -37,21 +38,23 @@ export class MonitorComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.getPeers.pipe(
-      switchMap(() =>
-        this._seedService.getAllPeers()
-          .pipe(
-            catchError(err => {
-              if (this._dialog.openDialogs?.length === 0) {
-                this.openDialog(err);
-              }
-              return EMPTY;
-            }),
-          )
-      ),
-      filter(value => !_isEmpty(value)),
-      takeUntil(this._destroy$)
-    ).subscribe(list => {
+    combineLatest([
+      this.getPeers.pipe(startWith(undefined)),
+      this.getPeersManual.pipe(startWith(undefined))
+    ]).pipe(
+        switchMap(() =>
+          this._seedService.getAllPeers()
+            .pipe(
+              catchError(err => {
+                if (this._dialog.openDialogs?.length === 0) {
+                  this.openDialog(err);
+                }
+                return EMPTY;
+              }),
+            )
+        ),
+        takeUntil(this._destroy$)
+      ).subscribe(list => {
       this.dataSource.data = list;
     });
   }
@@ -67,9 +70,22 @@ export class MonitorComponent implements OnInit, AfterViewInit, OnDestroy {
     dialogRef.afterClosed().subscribe();
   }
 
+  removeSeed(element: Peer) {
+    this._seedService.removeSeed(element).subscribe({
+        next: _ => this.getPeersManual.next(undefined),
+        error: err => this.openDialog(err)
+      }
+    );
+  }
+
+  removeAllSeeds() {
+    this._seedService.removeAllSeeds().subscribe({
+      next: _ => this.getPeersManual.next(undefined),
+      error: err => this.openDialog(err)
+    });
+  }
+
   ngOnDestroy(): void {
     this._destroy$.complete();
   }
-
-
 }

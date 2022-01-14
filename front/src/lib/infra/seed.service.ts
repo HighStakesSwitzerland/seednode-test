@@ -19,4 +19,11 @@ export class SeedService {
     return this._httpClient.post<void>("/api/peers", list);
   }
 
+  public removeSeed(element: Peer) {
+    return this._httpClient.delete<void>(`/api/peers?id=${element.NodeInfo.id}`);
+  }
+  public removeAllSeeds() {
+    return this._httpClient.delete<void>("/api/peers");
+  }
+
 }

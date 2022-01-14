@@ -1,8 +1,8 @@
 <app-header></app-header>
 <div class="m-3">
-  <mat-tab-group dynamicHeight>
+  <mat-tab-group (selectedTabChange)="appMonitor.getPeersManual.next(undefined)" dynamicHeight>
     <mat-tab label="Monitor">
-      <app-monitor></app-monitor>
+      <app-monitor #appMonitor></app-monitor>
     </mat-tab>
     <mat-tab label="Add Seeds">
       <app-seed-list (backToMonitorTab)="matTabGroup.selectedIndex = 0"></app-seed-list>

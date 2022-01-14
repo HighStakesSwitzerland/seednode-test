@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/tendermint/tendermint/libs/log"
+	"github.com/tendermint/tendermint/p2p"
 	"github.com/terran-stakers/seednode-test/internal/seednode"
 	"github.com/terran-stakers/seednode-test/internal/tendermint"
 	"net/http"
@@ -40,11 +41,27 @@ func handleOperation(w http.ResponseWriter, r *http.Request, sw *tendermint.Swit
 	if r.Method == "GET" {
 		getAllPeers(w, sw)
 	} else if r.Method == "POST" {
-		handlePeers(w, r, sw, reactor)
+		handlePeers(w, r, reactor)
+	} else if r.Method == "DELETE" {
+		deletePeers(r, reactor)
+	} else {
+		w.WriteHeader(500)
 	}
 }
 
-func handlePeers(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
+func deletePeers(r *http.Request, reactor *tendermint.SeedNodeReactor) {
+	id := r.URL.Query().Get("id")
+	if len(id) > 0 {
+		if p := reactor.Switch.GetPersistentPeers().Get(p2p.ID(id)); p != nil {
+			reactor.Switch.GetPersistentPeers().Remove(p)
+		}
+	} else {
+		reactor.Switch.GetPersistentPeers().Clear()
+	}
+
+}
+
+func handlePeers(w http.ResponseWriter, r *http.Request, reactor *tendermint.SeedNodeReactor) {
 	var peers []string
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -71,6 +88,10 @@ func getAllPeers(w http.ResponseWriter, sw *tendermint.Switch) {
 }
 
 func writePeersToResponse(w http.ResponseWriter, peers []NgPeer) {
+	if len(peers) == 0 {
+		_, _ = w.Write([]byte("[]"))
+		return
+	}
 	marshal, err := json.Marshal(peers)
 	if err != nil {
 		logger.Error("Failed to marshal peers list")

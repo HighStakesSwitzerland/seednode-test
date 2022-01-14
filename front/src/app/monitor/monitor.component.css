@@ -14,11 +14,16 @@ table {
 }
 .mat-column-LastValue {
   width: 1%;
-  min-width: 20px;
+  min-width: 10px;
 }
 .mat-column-peers {
   width: 1%;
-  min-width: 20px;
+  min-width: 10px;
+}
+.mat-column-remove {
+  width: 1%;
+  min-width: 10px;
+  cursor: pointer;
 }
 
 span.ellipsis {
