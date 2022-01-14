@@ -8,7 +8,7 @@ import {Peer} from "../domain/peer";
 })
 export class SeedService {
 
-  constructor(private readonly _httpClient: HttpClient) {
+  constructor(private _httpClient: HttpClient) {
   }
 
   public getAllPeers(): Observable<Peer[]> {

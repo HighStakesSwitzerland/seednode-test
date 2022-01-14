@@ -77,12 +77,15 @@ type Switch struct {
 	reactors     map[string]Reactor
 	chDescs      []*ChannelDescriptor
 	reactorsByCh map[byte]Reactor
-	peers        *PeerSet
-	dialing      *cmap.CMap
-	reconnecting *cmap.CMap
-	nodeInfo     p2p.NodeInfo // our node info
-	nodeKey      *p2p.NodeKey // our node privkey
-	addrBook     AddrBook
+	// peers are add and removed immediately (has we call seed node and they disconnect)
+	peers *PeerSet
+	// persistentPeers is the set we keep forever to build an history of seen nodes and metrics
+	persistentPeers *PeerSet
+	dialing         *cmap.CMap
+	reconnecting    *cmap.CMap
+	nodeInfo        p2p.NodeInfo // our node info
+	nodeKey         *p2p.NodeKey // our node privkey
+	addrBook        AddrBook
 	// peers addresses with whom we'll maintain constant connection
 	persistentPeersAddrs []*p2p.NetAddress
 	unconditionalPeerIDs map[p2p.ID]struct{}
@@ -93,8 +96,6 @@ type Switch struct {
 	peerFilters   []PeerFilterFunc
 
 	rng *rand.Rand // seed for randomizing dial times and orders
-
-	metrics *Metrics
 }
 
 // NetAddress returns the address the switch is listening on.
@@ -118,9 +119,9 @@ func NewSwitch(
 		chDescs:              make([]*ChannelDescriptor, 0),
 		reactorsByCh:         make(map[byte]Reactor),
 		peers:                NewPeerSet(),
+		persistentPeers:      NewPeerSet(),
 		dialing:              cmap.NewCMap(),
 		reconnecting:         cmap.NewCMap(),
-		metrics:              PrometheusMetrics("switch"),
 		transport:            transport,
 		filterTimeout:        defaultFilterTimeout,
 		persistentPeersAddrs: make([]*p2p.NetAddress, 0),
@@ -315,7 +316,7 @@ func (sw *Switch) StopPeerForError(peer Peer, reason interface{}) {
 	}
 
 	if reason != io.EOF {
-		logger.Error("Stopping peer for error", "peer", peer, "err", reason)
+		logger.Error("Stopping peer for error", "peer", peer.ID(), "err", reason)
 	}
 	sw.stopAndRemovePeer(peer, reason)
 }
@@ -331,9 +332,7 @@ func (sw *Switch) stopAndRemovePeer(peer Peer, reason interface{}) {
 	// reconnect to our node and the switch calls InitPeer before
 	// RemovePeer is finished.
 	// https://github.com/tendermint/tendermint/issues/3338
-	if sw.peers.Remove(peer) {
-		sw.metrics.Peers.Add(float64(-1))
-	}
+	sw.peers.Remove(peer)
 }
 
 // reconnectToPeer tries to reconnect to the addr, first repeatedly
@@ -588,9 +587,6 @@ func (sw *Switch) addOutboundPeerWithConfig(
 	addr *p2p.NetAddress,
 	cfg *config.P2PConfig,
 ) error {
-	logger.Info("Dialing peer", "address", addr)
-
-	// XXX(xla): Remove the leakage of test concerns in implementation.
 	if cfg.TestDialFail {
 		go sw.reconnectToPeer(addr)
 		return fmt.Errorf("dial err (peerConfig.DialFail == true)")
@@ -620,6 +616,27 @@ func (sw *Switch) addOutboundPeerWithConfig(
 			go sw.reconnectToPeer(addr)
 		}
 
+		// Still add to persistentPeer set to have a feedback in the front
+		dni := p2p.DefaultNodeInfo{
+			DefaultNodeID: addr.ID,
+			ListenAddr:    addr.IP.String(),
+		}
+		p := peer{
+			BaseService: service.BaseService{},
+			peerConn:    peerConn{},
+			mconn:       nil,
+			nodeInfo:    dni,
+			channels:    nil,
+			Data:        cmap.NewCMap(),
+			Metrics:     prometheusMetrics,
+		}
+		// and set the error message
+		p.Set("error", err.Error())
+		p.Set("status", "warning")
+
+		if !sw.persistentPeers.Has(p.ID()) {
+			sw.persistentPeers.Add(&p)
+		}
 		return err
 	}
 
@@ -669,8 +686,6 @@ func (sw *Switch) addPeer(p Peer) error {
 		return err
 	}
 
-	p.SetLogger(logger.With("peer", p.SocketAddr()))
-
 	// Handle the shut down case where the switch has stopped but we're
 	// concurrently trying to add a peer.
 	if !sw.IsRunning() {
@@ -700,14 +715,18 @@ func (sw *Switch) addPeer(p Peer) error {
 	if err := sw.peers.Add(p); err != nil {
 		return err
 	}
-	sw.metrics.Peers.Add(float64(1))
+	// Also add to persistentPeer set
+	if !sw.persistentPeers.Has(p.ID()) {
+		p.Set("status", "check_circle")
+		sw.persistentPeers.Add(p)
+	}
 
 	// Start all the reactor protocols on the peer.
 	for _, reactor := range sw.reactors {
 		reactor.AddPeer(p)
 	}
 
-	logger.Info("Added peer", "peer", p)
+	logger.Info("Added peer", "peer", p.ID())
 
 	return nil
 }
@@ -724,4 +743,8 @@ func validateID(id p2p.ID) error {
 		return fmt.Errorf("invalid hex length - got %d, expected %d", len(idBytes), p2p.IDByteLength)
 	}
 	return nil
+}
+
+func (sw *Switch) GetPersistentPeers() *PeerSet {
+	return sw.persistentPeers
 }

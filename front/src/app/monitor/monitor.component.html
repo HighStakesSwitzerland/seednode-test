@@ -1,30 +1,41 @@
-<table [dataSource]="dataSource" class="mat-elevation-z8" mat-table>
+<mat-table [dataSource]="dataSource" [matSortActive]="'Status'" class="mat-elevation-z8" matSort matSortDirection="desc">
   <ng-container matColumnDef="nodeId">
-    <th *matHeaderCellDef mat-header-cell> NodeId</th>
-    <td *matCellDef="let element" mat-cell> {{element.nodeId}} </td>
+    <mat-header-cell *matHeaderCellDef mat-sort-header="NodeInfo.id"> NodeId</mat-header-cell>
+    <mat-cell *matCellDef="let element">
+      <span class="ellipsis"  matTooltip="{{element.NodeInfo.id}}">{{element.NodeInfo.id}}</span>
+    </mat-cell>
   </ng-container>
 
-  <!-- Name Column -->
   <ng-container matColumnDef="moniker">
-    <th *matHeaderCellDef mat-header-cell> Name</th>
-    <td *matCellDef="let element" mat-cell> {{element.moniker}} </td>
+    <mat-header-cell *matHeaderCellDef mat-sort-header="NodeInfo.moniker"> Moniker</mat-header-cell>
+    <mat-cell *matCellDef="let element">
+      <span class="ellipsis" matTooltip="{{element.NodeInfo.moniker}}">{{element.NodeInfo.moniker}}</span>
+    </mat-cell>
   </ng-container>
 
-  <!-- Weight Column -->
   <ng-container matColumnDef="status">
-    <th *matHeaderCellDef mat-header-cell> Status</th>
-    <td *matCellDef="let element" mat-cell> {{element.Status}} </td>
+    <mat-header-cell *matHeaderCellDef mat-sort-header="Status"> Status</mat-header-cell>
+    <mat-cell *matCellDef="let element">
+      <mat-icon class="{{element.Status}}" matTooltip="{{element.Error}}">{{element.Status}}</mat-icon>
+    </mat-cell>
   </ng-container>
 
-  <!-- Symbol Column -->
-  <ng-container matColumnDef="result">
-    <th *matHeaderCellDef mat-header-cell> Result</th>
-    <td *matCellDef="let element" mat-cell>
-      {{element.numPeerReturned}}
-      <mat-icon>list</mat-icon>
-    </td>
+  <ng-container matColumnDef="LastValue">
+    <mat-header-cell *matHeaderCellDef mat-sort-header="LastValue">
+      <span class="ellipsis" matTooltip="Peers returned"> Peers returned </span>
+    </mat-header-cell>
+    <mat-cell *matCellDef="let element"> {{element.LastValue}} </mat-cell>
   </ng-container>
 
-  <tr *matHeaderRowDef="displayedColumns" mat-header-row></tr>
-  <tr *matRowDef="let row; columns: displayedColumns;" mat-row></tr>
-</table>
+  <ng-container matColumnDef="peers">
+    <mat-header-cell *matHeaderCellDef> Peers</mat-header-cell>
+    <mat-cell *matCellDef="let element">
+      <mat-icon *ngIf="element.Error?.length === 0" matTooltip="Not implemented">list</mat-icon>
+    </mat-cell>
+  </ng-container>
+
+  <mat-header-row *matHeaderRowDef="displayedColumns"></mat-header-row>
+  <mat-row *matRowDef="let row; columns: displayedColumns;"></mat-row>
+</mat-table>
+<mat-paginator [pageSizeOptions]="[5, 10, 20, 100]" [pageSize]="10" showFirstLastButtons>
+</mat-paginator>

@@ -38,14 +38,13 @@ func StartWebServer(seedConfig seednode.TSConfig, sw *tendermint.Switch, reactor
 
 func handleOperation(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
 	if r.Method == "GET" {
-		writePeers(w)
+		getAllPeers(w, sw)
 	} else if r.Method == "POST" {
 		handlePeers(w, r, sw, reactor)
 	}
 }
 
 func handlePeers(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, reactor *tendermint.SeedNodeReactor) {
-
 	var peers []string
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
@@ -60,19 +59,61 @@ func handlePeers(w http.ResponseWriter, r *http.Request, sw *tendermint.Switch, 
 	logger.Info(fmt.Sprintf("Received %d peers to dial", len(peers)))
 
 	// emit peers
-	seednode.DialPeers(peers, sw, reactor)
+	errors := tendermint.DialPeers(peers, reactor)
 
-	w.WriteHeader(200)
+	if errors != nil && len(errors) > 0 {
+		writeErrorToResponse(w, errors)
+	}
 }
 
-func writePeers(w http.ResponseWriter) {
-	marshal, err := json.Marshal("")
+func getAllPeers(w http.ResponseWriter, sw *tendermint.Switch) {
+	writePeersToResponse(w, peersToNgPeers(sw.GetPersistentPeers().List()))
+}
+
+func writePeersToResponse(w http.ResponseWriter, peers []NgPeer) {
+	marshal, err := json.Marshal(peers)
 	if err != nil {
-		logger.Info("Failed to marshal peers list")
+		logger.Error("Failed to marshal peers list")
 		return
 	}
 	_, err = w.Write(marshal)
 	if err != nil {
+		logger.Error("Failed to write peers to response")
 		return
 	}
+}
+
+func writeErrorToResponse(w http.ResponseWriter, errs []error) {
+	marshal, err := json.Marshal(errs)
+	if err != nil {
+		logger.Error("Failed to marshal error")
+		return
+	}
+	w.WriteHeader(500)
+	_, err = w.Write(marshal)
+	if err != nil {
+		logger.Error("Failed to write errors to response")
+		return
+	}
+}
+
+func peersToNgPeers(peers []tendermint.Peer) []NgPeer {
+	var res []NgPeer
+
+	for _, p := range peers {
+		np := NgPeer{}
+		np.NodeInfo = p.NodeInfo()
+		if p.Get("lastValue") != nil {
+			np.LastValue = p.Get("lastValue").(int)
+		}
+		if p.Get("status") != nil {
+			np.Status = p.Get("status").(string)
+		}
+		if p.Get("error") != nil {
+			np.Error = p.Get("error").(string)
+		}
+		res = append(res, np)
+	}
+
+	return res
 }

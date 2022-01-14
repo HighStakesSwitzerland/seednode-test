@@ -2,7 +2,7 @@
   <mat-form-field appearance="fill">
     <mat-label>Copy paste seed node list here. Delimiters: comma or line break</mat-label>
     <div style="text-align:center">
-      <textarea #textarea matInput>
+      <textarea #textarea [disabled]="working" matInput>
       </textarea>
     </div>
   </mat-form-field>
@@ -11,4 +11,8 @@
       <mat-icon>upload</mat-icon>
     </button>
   </div>
+</div>
+<div *ngIf="working" class="spinner">
+  <span>Resolving peers...</span>
+  <mat-spinner></mat-spinner>
 </div>

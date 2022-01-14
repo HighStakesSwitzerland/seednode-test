@@ -8,7 +8,15 @@ mat-form-field {
 
 .fab-button {
   float: right;
-  position: relative;
-  bottom: 100px;
-  right: 30px;
+  position: fixed;
+  bottom: 50px;
+  right: 90px;
+}
+
+.spinner {
+  float: left;
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  color: #3f51b5;
 }

@@ -1,16 +1,16 @@
 package tendermint
 
 import (
-  "github.com/tendermint/tendermint/libs/service"
-  "github.com/tendermint/tendermint/p2p"
-  "github.com/tendermint/tendermint/p2p/conn"
-  "net"
+	"github.com/tendermint/tendermint/libs/service"
+	"github.com/tendermint/tendermint/p2p"
+	"github.com/tendermint/tendermint/p2p/conn"
+	"net"
 )
 
 import (
-  "fmt"
-  "github.com/tendermint/tendermint/libs/cmap"
-  "github.com/tendermint/tendermint/libs/log"
+	"fmt"
+	"github.com/tendermint/tendermint/libs/cmap"
+	"github.com/tendermint/tendermint/libs/log"
 )
 
 /**
@@ -19,153 +19,157 @@ import (
 
 // Peer is an interface representing a peer connected on a reactor.
 type Peer interface {
-  service.Service
-  FlushStop()
+	service.Service
+	FlushStop()
 
-  ID() p2p.ID           // peer's cryptographic ID
-  RemoteIP() net.IP     // remote IP of the connection
-  RemoteAddr() net.Addr // remote address of the connection
+	ID() p2p.ID           // peer's cryptographic ID
+	RemoteIP() net.IP     // remote IP of the connection
+	RemoteAddr() net.Addr // remote address of the connection
 
-  IsOutbound() bool   // did we dial the peer
-  IsPersistent() bool // do we redial this peer when we disconnect
+	IsOutbound() bool   // did we dial the peer
+	IsPersistent() bool // do we redial this peer when we disconnect
 
-  CloseConn() error // close original connection
+	CloseConn() error // close original connection
 
-  NodeInfo() p2p.NodeInfo // peer's info
-  Status() ConnectionStatus
-  SocketAddr() *p2p.NetAddress // actual address of the socket
+	NodeInfo() p2p.NodeInfo // peer's info
+	Status() ConnectionStatus
+	SocketAddr() *p2p.NetAddress // actual address of the socket
 
-  Send(byte, []byte) bool
-  TrySend(byte, []byte) bool
+	Send(byte, []byte) bool
+	TrySend(byte, []byte) bool
 
-  Set(string, interface{})
-  Get(string) interface{}
+	Set(string, interface{})
+	Get(string) interface{}
 
-  // GetMetrics -------------- Additional attributes for the metrics -----------//
-  GetMetrics() *Metrics
+	// GetMetrics -------------- Additional attributes for the metrics -----------//
+	GetMetrics() *Metrics
 }
 
 //----------------------------------------------------------
 
 // peerConn contains the raw connection and its config.
 type peerConn struct {
-  outbound   bool
-  persistent bool
-  conn       net.Conn // source connection
+	outbound   bool
+	persistent bool
+	conn       net.Conn // source connection
 
-  socketAddr *p2p.NetAddress
+	socketAddr *p2p.NetAddress
 
-  // cached RemoteIP()
-  ip net.IP
+	// cached RemoteIP()
+	ip net.IP
 }
 
+var (
+	prometheusMetrics = PrometheusMetrics("peer")
+)
+
 func newPeerConn(
-  outbound, persistent bool,
-  conn net.Conn,
-  socketAddr *p2p.NetAddress,
+	outbound, persistent bool,
+	conn net.Conn,
+	socketAddr *p2p.NetAddress,
 ) peerConn {
 
-  return peerConn{
-    outbound:   outbound,
-    persistent: persistent,
-    conn:       conn,
-    socketAddr: socketAddr,
-  }
+	return peerConn{
+		outbound:   outbound,
+		persistent: persistent,
+		conn:       conn,
+		socketAddr: socketAddr,
+	}
 }
 
 // ID only exists for SecretConnection.
 // NOTE: Will panic if conn is not *SecretConnection.
 func (pc peerConn) ID() p2p.ID {
-  return p2p.PubKeyToID(pc.conn.(*conn.SecretConnection).RemotePubKey())
+	return p2p.PubKeyToID(pc.conn.(*conn.SecretConnection).RemotePubKey())
 }
 
 // RemoteIP Return the IP from the connection RemoteAddr
 func (pc peerConn) RemoteIP() net.IP {
-  if pc.ip != nil {
-    return pc.ip
-  }
+	if pc.ip != nil {
+		return pc.ip
+	}
 
-  host, _, err := net.SplitHostPort(pc.conn.RemoteAddr().String())
-  if err != nil {
-    panic(err)
-  }
+	host, _, err := net.SplitHostPort(pc.conn.RemoteAddr().String())
+	if err != nil {
+		panic(err)
+	}
 
-  ips, err := net.LookupIP(host)
-  if err != nil {
-    panic(err)
-  }
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		panic(err)
+	}
 
-  pc.ip = ips[0]
+	pc.ip = ips[0]
 
-  return pc.ip
+	return pc.ip
 }
 
 // peer implements Peer.
 //
 // Before using a peer, you will need to perform a handshake on connection.
 type peer struct {
-  service.BaseService
+	service.BaseService
 
-  // raw peerConn and the multiplex connection
-  peerConn
-  mconn *MConnection
+	// raw peerConn and the multiplex connection
+	peerConn
+	mconn *MConnection
 
-  // peer's node info and the channel it knows about
-  // channels = nodeInfo.Channels
-  // cached to avoid copying nodeInfo in hasChannel
-  nodeInfo p2p.NodeInfo
-  channels []byte
+	// peer's node info and the channel it knows about
+	// channels = nodeInfo.Channels
+	// cached to avoid copying nodeInfo in hasChannel
+	nodeInfo p2p.NodeInfo
+	channels []byte
 
-  // User data
-  Data *cmap.CMap
+	// User data
+	Data *cmap.CMap
 
-  // Metrics
-  metrics *Metrics
+	// Metrics
+	Metrics *Metrics
 }
 
 type PeerOption func(*peer)
 
 func newPeer(
-  pc peerConn,
-  mConfig MConnConfig,
-  nodeInfo p2p.NodeInfo,
-  reactorsByCh map[byte]Reactor,
-  chDescs []*ChannelDescriptor,
-  onPeerError func(Peer, interface{}),
-  options ...PeerOption,
+	pc peerConn,
+	mConfig MConnConfig,
+	nodeInfo p2p.NodeInfo,
+	reactorsByCh map[byte]Reactor,
+	chDescs []*ChannelDescriptor,
+	onPeerError func(Peer, interface{}),
+	options ...PeerOption,
 ) *peer {
-  p := &peer{
-    peerConn: pc,
-    nodeInfo: nodeInfo,
-    channels: nodeInfo.(p2p.DefaultNodeInfo).Channels,
-    Data:     cmap.NewCMap(),
-    metrics:  PrometheusMetrics("peer"),
-  }
+	p := &peer{
+		peerConn: pc,
+		nodeInfo: nodeInfo,
+		channels: nodeInfo.(p2p.DefaultNodeInfo).Channels,
+		Data:     cmap.NewCMap(),
+		Metrics:  prometheusMetrics,
+	}
 
-  p.mconn = createMConnection(
-    pc.conn,
-    p,
-    reactorsByCh,
-    chDescs,
-    onPeerError,
-    mConfig,
-  )
+	p.mconn = createMConnection(
+		pc.conn,
+		p,
+		reactorsByCh,
+		chDescs,
+		onPeerError,
+		mConfig,
+	)
 
-  p.BaseService = *service.NewBaseService(nil, "Peer", p)
-  for _, option := range options {
-    option(p)
-  }
+	p.BaseService = *service.NewBaseService(nil, "Peer", p)
+	for _, option := range options {
+		option(p)
+	}
 
-  return p
+	return p
 }
 
 // String representation.
 func (p *peer) String() string {
-  if p.outbound {
-    return fmt.Sprintf("Peer{%v %v out}", p.mconn, p.ID())
-  }
+	if p.outbound {
+		return fmt.Sprintf("Peer{%v %v out}", p.mconn, p.ID())
+	}
 
-  return fmt.Sprintf("Peer{%v %v in}", p.mconn, p.ID())
+	return fmt.Sprintf("Peer{%v %v in}", p.mconn, p.ID())
 }
 
 //---------------------------------------------------
@@ -173,36 +177,36 @@ func (p *peer) String() string {
 
 // SetLogger implements BaseService.
 func (p *peer) SetLogger(l log.Logger) {
-  logger = l
-  p.mconn.SetLogger(l)
+	logger = l
+	p.mconn.SetLogger(l)
 }
 
 // OnStart implements BaseService.
 func (p *peer) OnStart() error {
-  if err := p.BaseService.OnStart(); err != nil {
-    return err
-  }
+	if err := p.BaseService.OnStart(); err != nil {
+		return err
+	}
 
-  if err := p.mconn.Start(); err != nil {
-    return err
-  }
-  return nil
+	if err := p.mconn.Start(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // FlushStop mimics OnStop but additionally ensures that all successful
 // .Send() calls will get flushed before closing the connection.
 // NOTE: it is not safe to call this method more than once.
 func (p *peer) FlushStop() {
-  p.BaseService.OnStop()
-  p.mconn.FlushStop() // stop everything and close the conn
+	p.BaseService.OnStop()
+	p.mconn.FlushStop() // stop everything and close the conn
 }
 
 // OnStop implements BaseService.
 func (p *peer) OnStop() {
-  p.BaseService.OnStop()
-  if err := p.mconn.Stop(); err != nil { // stop everything and close the conn
-    logger.Debug("Error while stopping peer", "err", err)
-  }
+	p.BaseService.OnStop()
+	if err := p.mconn.Stop(); err != nil { // stop everything and close the conn
+		logger.Debug("Error while stopping peer", "err", err)
+	}
 }
 
 //---------------------------------------------------
@@ -210,22 +214,22 @@ func (p *peer) OnStop() {
 
 // ID returns the peer's ID - the hex encoded hash of its pubkey.
 func (p *peer) ID() p2p.ID {
-  return p.nodeInfo.ID()
+	return p.nodeInfo.ID()
 }
 
 // IsOutbound returns true if the connection is outbound, false otherwise.
 func (p *peer) IsOutbound() bool {
-  return p.peerConn.outbound
+	return p.peerConn.outbound
 }
 
 // IsPersistent returns true if the peer is persitent, false otherwise.
 func (p *peer) IsPersistent() bool {
-  return p.peerConn.persistent
+	return p.peerConn.persistent
 }
 
 // NodeInfo returns a copy of the peer's NodeInfo.
 func (p *peer) NodeInfo() p2p.NodeInfo {
-  return p.nodeInfo
+	return p.nodeInfo
 }
 
 // SocketAddr returns the address of the socket.
@@ -233,75 +237,75 @@ func (p *peer) NodeInfo() p2p.NodeInfo {
 // For inbound peers, it's the address returned by the underlying connection
 // (not what's reported in the peer's NodeInfo).
 func (p *peer) SocketAddr() *p2p.NetAddress {
-  return p.peerConn.socketAddr
+	return p.peerConn.socketAddr
 }
 
 // Status returns the peer's ConnectionStatus.
 func (p *peer) Status() ConnectionStatus {
-  return p.mconn.Status()
+	return p.mconn.Status()
 }
 
 // Send msg bytes to the channel identified by chID byte. Returns false if the
 // send queue is full after timeout, specified by MConnection.
 func (p *peer) Send(chID byte, msgBytes []byte) bool {
-  if !p.IsRunning() {
-    // see Switch#Broadcast, where we fetch the list of peers and loop over
-    // them - while we're looping, one peer may be removed and stopped.
-    return false
-  } else if !p.hasChannel(chID) {
-    return false
-  }
-  return p.mconn.Send(chID, msgBytes)
+	if !p.IsRunning() {
+		// see Switch#Broadcast, where we fetch the list of peers and loop over
+		// them - while we're looping, one peer may be removed and stopped.
+		return false
+	} else if !p.hasChannel(chID) {
+		return false
+	}
+	return p.mconn.Send(chID, msgBytes)
 }
 
 // TrySend msg bytes to the channel identified by chID byte. Immediately returns
 // false if the send queue is full.
 func (p *peer) TrySend(chID byte, msgBytes []byte) bool {
-  if !p.IsRunning() {
-    return false
-  } else if !p.hasChannel(chID) {
-    return false
-  }
-  return p.mconn.TrySend(chID, msgBytes)
+	if !p.IsRunning() {
+		return false
+	} else if !p.hasChannel(chID) {
+		return false
+	}
+	return p.mconn.TrySend(chID, msgBytes)
 }
 
 // Get the data for a given key.
 func (p *peer) Get(key string) interface{} {
-  return p.Data.Get(key)
+	return p.Data.Get(key)
 }
 
 // Set sets the data for the given key.
 func (p *peer) Set(key string, data interface{}) {
-  p.Data.Set(key, data)
+	p.Data.Set(key, data)
 }
 
 // hasChannel returns true if the peer reported
 // knowing about the given chID.
 func (p *peer) hasChannel(chID byte) bool {
-  for _, ch := range p.channels {
-    if ch == chID {
-      return true
-    }
-  }
-  // NOTE: probably will want to remove this
-  // but could be helpful while the feature is new
-  logger.Debug(
-    "Unknown channel for peer",
-    "channel",
-    chID,
-    "channels",
-    p.channels,
-  )
-  return false
+	for _, ch := range p.channels {
+		if ch == chID {
+			return true
+		}
+	}
+	// NOTE: probably will want to remove this
+	// but could be helpful while the feature is new
+	logger.Debug(
+		"Unknown channel for peer",
+		"channel",
+		chID,
+		"channels",
+		p.channels,
+	)
+	return false
 }
 
 func (p *peer) GetMetrics() *Metrics {
-  return p.metrics
+	return p.Metrics
 }
 
 // CloseConn closes original connection. Used for cleaning up in cases where the peer had not been started at all.
 func (p *peer) CloseConn() error {
-  return p.peerConn.conn.Close()
+	return p.peerConn.conn.Close()
 }
 
 //---------------------------------------------------
@@ -310,56 +314,56 @@ func (p *peer) CloseConn() error {
 
 // CloseConn closes the underlying connection
 func (pc *peerConn) CloseConn() {
-  err := pc.conn.Close()
-  if err != nil {
-    logger.Debug("Error closing connection", err)
-  }
+	err := pc.conn.Close()
+	if err != nil {
+		logger.Debug("Error closing connection", err)
+	}
 }
 
 // RemoteAddr returns peer's remote network address.
 func (p *peer) RemoteAddr() net.Addr {
-  return p.peerConn.conn.RemoteAddr()
+	return p.peerConn.conn.RemoteAddr()
 }
 
 // CanSend returns true if the send queue is not full, false otherwise.
 func (p *peer) CanSend(chID byte) bool {
-  if !p.IsRunning() {
-    return false
-  }
-  return p.mconn.CanSend(chID)
+	if !p.IsRunning() {
+		return false
+	}
+	return p.mconn.CanSend(chID)
 }
 
 //------------------------------------------------------------------
 // helper funcs
 
 func createMConnection(
-  conn net.Conn,
-  p *peer,
-  reactorsByCh map[byte]Reactor,
-  chDescs []*ChannelDescriptor,
-  onPeerError func(Peer, interface{}),
-  config MConnConfig,
+	conn net.Conn,
+	p *peer,
+	reactorsByCh map[byte]Reactor,
+	chDescs []*ChannelDescriptor,
+	onPeerError func(Peer, interface{}),
+	config MConnConfig,
 ) *MConnection {
 
-  onReceive := func(chID byte, msgBytes []byte) {
-    reactor := reactorsByCh[chID]
-    if reactor == nil {
-      // Note that its ok to panic here as it's caught in the conn._recover,
-      // which does onPeerError.
-      panic(fmt.Sprintf("Unknown channel %X", chID))
-    }
-    reactor.Receive(chID, p, msgBytes)
-  }
+	onReceive := func(chID byte, msgBytes []byte) {
+		reactor := reactorsByCh[chID]
+		if reactor == nil {
+			// Note that its ok to panic here as it's caught in the conn._recover,
+			// which does onPeerError.
+			panic(fmt.Sprintf("Unknown channel %X", chID))
+		}
+		reactor.Receive(chID, p, msgBytes)
+	}
 
-  onError := func(r interface{}) {
-    onPeerError(p, r)
-  }
+	onError := func(r interface{}) {
+		onPeerError(p, r)
+	}
 
-  return NewMConnectionWithConfig(
-    conn,
-    chDescs,
-    onReceive,
-    onError,
-    config,
-  )
+	return NewMConnectionWithConfig(
+		conn,
+		chDescs,
+		onReceive,
+		onError,
+		config,
+	)
 }

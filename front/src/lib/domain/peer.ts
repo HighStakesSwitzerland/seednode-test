@@ -1,7 +1,14 @@
 export interface Peer {
-  nodeId: string;
-  moniker: string;
-  returned: Seed[]
+  NodeInfo: NodeInfo
+  LastValue: number
+}
+
+export interface NodeInfo {
+  id: string,
+  listen_addr: string,
+  network: string,
+  version: string,
+  moniker: string,
 }
 
 export interface Seed {

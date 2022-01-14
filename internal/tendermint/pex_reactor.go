@@ -52,7 +52,7 @@ func NewBaseReactor(name string, impl Reactor) *p2p.BaseReactor {
 // RequestAddrs asks peer for more addresses if we do not already have a
 // request out for this peer.
 func (br *SeedNodeReactor) RequestAddrs(p Peer) {
-	logger.Debug(fmt.Sprintf("Requesting addrs from %s", p.ID()))
+	// logger.Debug(fmt.Sprintf("Requesting addrs from %s", p.ID()))
 	p.Send(pex.PexChannel, mustEncode(&tmp2p.PexRequest{}))
 }
 
@@ -62,6 +62,7 @@ func (br *SeedNodeReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 	if err != nil {
 		logger.Error("Error decoding message", "src", src, "chId", chID, "err", err)
 		br.Switch.StopPeerForError(src, err)
+		src.Set("warning", "down")
 		return
 	}
 
@@ -72,9 +73,17 @@ func (br *SeedNodeReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 		break
 
 	case *tmp2p.PexAddrs:
-		// We asked for addresses, return them to the front and forget them
+		// We asked for addresses, add them to the source peer
 		addrs, err := p2p.NetAddressesFromProto(msg.Addrs)
-		logger.Info(fmt.Sprintf("We got %d addresses", len(addrs)))
+		logger.Info(fmt.Sprintf("We got %d addresses from %s", len(addrs), src.NodeInfo().ID()))
+
+		peer := br.Switch.persistentPeers.Get(src.ID())
+		if peer == nil {
+			panic("persistentPeers does not contain the source peer!?")
+		}
+		src.Set("lastValue", len(addrs))
+		peer.GetMetrics().SeedReceivePeers.Set(float64(len(addrs)))
+
 		if err != nil {
 			logger.Error(err.Error())
 			return
@@ -86,16 +95,28 @@ func (br *SeedNodeReactor) Receive(chID byte, src Peer, msgBytes []byte) {
 }
 
 // DialPeers Dials a peer and retrieve the resulting seed list
-func DialPeers(addrs []*p2p.NetAddress, srcAddr *p2p.NetAddress, r *SeedNodeReactor) error {
+func DialPeers(peers []string, r *SeedNodeReactor) []error {
+	addrs, errors := p2p.NewNetAddressStrings(peers)
+	if len(errors) > 0 {
+		logger.Error("Detected invalid peer(s)", "error", errors)
+		// TODO reactor.Switch.GetPersistentPeers().Has()
+		// find missing peers with intersection
+	}
+
 	for _, netAddr := range addrs {
-		logger.Info("Will dial address", "addr", netAddr, "seed", srcAddr)
+
 		err := r.Switch.DialPeerWithAddress(netAddr)
 		if err != nil {
 			logger.Error(err.Error(), "addr", netAddr)
+			peer := r.Switch.persistentPeers.Get(netAddr.ID)
+			if peer != nil {
+				peer.Set("status", "warning")
+				peer.Set("error", err.Error())
+			}
 		}
 	}
 
-	return nil
+	return errors
 }
 
 // GetChannels implements Reactor

@@ -1,7 +1,11 @@
 <app-header></app-header>
 <div class="m-3">
   <mat-tab-group dynamicHeight>
-    <mat-tab label="Seed list"><app-seed-list></app-seed-list></mat-tab>
-    <mat-tab label="Monitor"><app-monitor></app-monitor></mat-tab>
+    <mat-tab label="Monitor">
+      <app-monitor></app-monitor>
+    </mat-tab>
+    <mat-tab label="Add Seeds">
+      <app-seed-list (backToMonitorTab)="matTabGroup.selectedIndex = 0"></app-seed-list>
+    </mat-tab>
   </mat-tab-group>
 </div>

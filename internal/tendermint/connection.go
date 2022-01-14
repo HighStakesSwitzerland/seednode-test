@@ -583,7 +583,7 @@ FOR_LOOP:
 		c.recvMonitor.Update(_n)
 		if err != nil {
 			// stopServices was invoked and we are shutting down
-			// receiving is excpected to fail since we will close the connection
+			// receiving is expected to fail since we will close the connection
 			select {
 			case <-c.quitRecvRoutine:
 				break FOR_LOOP
@@ -591,12 +591,12 @@ FOR_LOOP:
 			}
 
 			if c.IsRunning() {
-				if err != io.EOF {
+				if err == io.EOF {
 					// logger.Info("Connection is closed @ recvRoutine (likely by the other side)", "conn", c)
 				} else {
 					logger.Debug("Connection failed @ recvRoutine (reading byte)", "conn", c, "err", err)
-					c.stopForError(err)
 				}
+				c.stopForError(err)
 			}
 			break FOR_LOOP
 		}

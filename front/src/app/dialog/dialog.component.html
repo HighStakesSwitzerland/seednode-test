@@ -1,0 +1,11 @@
+<h2 mat-dialog-title>Error</h2>
+<mat-dialog-content class="mat-typography">
+  <h3>{{data.title}}</h3>
+  <div *ngIf="_isArray(data.errors); else elseBlock">
+    <p *ngFor="let err of data.errors!">{{err | json}}</p>
+  </div>
+  <ng-template #elseBlock>{{data.httpError.message}}</ng-template>
+</mat-dialog-content>
+<mat-dialog-actions>
+  <button [mat-dialog-close]="true" cdkFocusInitial mat-button>Close</button>
+</mat-dialog-actions>
