@@ -133,25 +133,7 @@ http_port = "{{ .HttpPort }}"
 log_level = "{{ .LogLevel }}"
 
 [p2p]
-# Comma separated list of seed nodes to connect to. Not really needed for this version
-seeds = "{{ .Seeds }}"
 
 # TCP or UNIX socket address for the RPC server to listen on
 laddr = "{{ .ListenAddress }}"
-
-# Address to advertise to peers for them to dial
-# If empty, will use the same port as the laddr,
-# and will introspect on the listener or use UPnP
-# to figure out the address. ip and port are required
-# example: 159.89.10.97:26656
-external_address = "{{ .ExternalAddress }}"
-
-# Maximum number of inbound peers. This value can be huge as we don't keep connections opened
-max_num_inbound_peers = {{ .MaxNumInboundPeers }}
-
-# Maximum number of outbound peers to connect to, excluding persistent peers
-max_num_outbound_peers = {{ .MaxNumOutboundPeers }}
-
-# Maximum pause when redialing a persistent peer (if zero, exponential backoff is used)
-persistent_peers_max_dial_period = "{{ .PersistentPeersMaxDialPeriod }}"
 `
