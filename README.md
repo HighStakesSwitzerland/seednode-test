@@ -5,7 +5,7 @@ This tool runs a seed node for multiple tendermint based blockchain (i.e. Terra,
 ###Configuration
 
 ```bash
-git clone https://github.com/Terran-Stakers/seednode-test
+git clone https://github.com/HighStakesSwitzerland/seednode-test
 go mod tidy
 npm install
 npm run build

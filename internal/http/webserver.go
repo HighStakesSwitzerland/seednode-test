@@ -4,10 +4,10 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"github.com/highstakesswitzerland/seednode-test/internal/seednode"
+	"github.com/highstakesswitzerland/seednode-test/internal/tendermint"
 	"github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/p2p"
-	"github.com/terran-stakers/seednode-test/internal/seednode"
-	"github.com/terran-stakers/seednode-test/internal/tendermint"
 	"net/http"
 	"os"
 )

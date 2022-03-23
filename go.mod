@@ -1,10 +1,10 @@
-go 1.17
+go 1.18
 
-module github.com/terran-stakers/seednode-test
+module github.com/highstakesswitzerland/seednode-test
 
 require (
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/tendermint/tendermint v0.34.14
+	github.com/tendermint/tendermint v0.34.15
 )
 
 require (

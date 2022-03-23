@@ -2,13 +2,13 @@ package seednode
 
 import (
 	"fmt"
+	"github.com/highstakesswitzerland/seednode-test/internal/tendermint"
 	"github.com/tendermint/tendermint/config"
 	"github.com/tendermint/tendermint/libs/log"
 	tmos "github.com/tendermint/tendermint/libs/os"
 	"github.com/tendermint/tendermint/p2p"
 	"github.com/tendermint/tendermint/p2p/pex"
 	"github.com/tendermint/tendermint/version"
-	"github.com/terran-stakers/seednode-test/internal/tendermint"
 	"os"
 )
 

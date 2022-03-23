@@ -1,11 +1,11 @@
 package main
 
 import (
+	"github.com/highstakesswitzerland/seednode-test/internal/http"
+	"github.com/highstakesswitzerland/seednode-test/internal/seednode"
+	"github.com/highstakesswitzerland/seednode-test/internal/tendermint"
 	"github.com/tendermint/tendermint/libs/log"
-	"github.com/terran-stakers/seednode-test/internal/http"
-	"github.com/terran-stakers/seednode-test/internal/seednode"
-  "github.com/terran-stakers/seednode-test/internal/tendermint"
-  "os"
+	"os"
 )
 
 var (
